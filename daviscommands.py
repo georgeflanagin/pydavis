@@ -14,10 +14,12 @@ __status__ = 'Prototype'
 __required_version__ = (3,7)
 
 # Builtins
+import datetime
 import enum
 import os
 import struct
 import sys
+import time
 import typing
 from   typing import *
 
@@ -106,9 +108,9 @@ class CRC:
         else:
             pass
 
-        crc = crc_init
+        AX = CRC.crc_init
         for b in data:
-            crc = crc_table[(crc >> 8) ^ b] ^ (crc << 8)
+            AX = CRC.crc_table[(AX >> 8) ^ b] ^ (AX << 8)
         return crc
 
 
@@ -118,7 +120,6 @@ class CRC:
         """
         return crc_table[(checksum >> 8) ^ b] ^ (checksum << 8) == 0
             
-             
 
 class DavisCommand(enum.Enum):
     """
@@ -176,7 +177,7 @@ class DavisCommand(enum.Enum):
     NEWSETUP = prep('NEWSETUP\n') # TODO: this is a dangerous command.
     LAMP_ON = prep('LAMPS 1\n')
     LAMP_OFF = prep('LAMPS 0\n')
-    
+
 
 class DavisResponse(enum.Enum):
     ACK = prepx('06')
@@ -184,3 +185,35 @@ class DavisResponse(enum.Enum):
     DONE = prep('DONE\n\r')
     AWAKE = prepx('0A0D')
 
+
+class DavisDate:
+    """
+    Convert Davis date stamps written as:
+        7 bit year | 4 bit month | 5 bit day
+    with the year having an offset of 2000 to a Python date.
+    """
+    
+    def from_davis(value:np.uint16) -> datetime.date:
+        year = value >> 9
+        month = value & 0b0000000111100000 >> 5
+        day = value & 31
+        return datetime.date(year+2000, month, day)
+
+    def to_davis(d:datetime.date) -> np.uint16:
+        return np.uint16((d.year-2000) << 9 + d.month << 5 + d.day)
+    
+
+class DavisTime:
+    """
+    Convert Davis times of h*100 + minute to a Python time.
+    """
+    
+    def from_davis(value:np.uint16) -> datetime.time:
+        m = value % 100
+        h = value // 100
+        return datetime.time(h, m)
+
+    def to_davis(value:datetime.time) -> np.uint16:
+        return value.hour * 100 + value.minute
+
+ 
