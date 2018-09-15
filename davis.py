@@ -11,7 +11,7 @@ __version__ = '0.1'
 __maintainer__ = 'George Flanagin'
 __email__ = 'me+davis@georgeflanagin.com'
 __status__ = 'Prototype'
-__required_version__ = (3,6)
+__required_version__ = (3,7)
 
 # Builtins
 import argparse
@@ -26,6 +26,12 @@ import sys
 import time
 import typing
 from   typing import *
+
+if sys.version_info < __required_version__:
+    print('This program is compatible with Python {}.{} and later.'.format(
+        sys.version_info.major, sys.version_info.minor)
+        )
+    sys.exit(os.EX_SOFTWARE)
 
 # Paramiko
 import logging
