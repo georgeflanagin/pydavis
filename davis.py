@@ -101,7 +101,28 @@ class DavisCommand(enum.Enum):
     EERD = prep('EERD')
     EEBWR = prep('EEBWR')
     EEBRD = prep('EEBRD')
-
+    CALED = prep('CALED\n')
+    CALFIX = prep('CALFIX\n')
+    BAR = prep('BAR')
+    BARDATA = prep('BARDATA\n')
+    CLRLOG = prep('CLRLOG\n') # TODO: this is a dangerous command.
+    CLRALM = prep('CLRALM\n')
+    CLRCAL = prep('CLRCAL\n')
+    CLRGRA = prep('CLRGRA\n')
+    CLRVAR = prep('CLRVAR')
+    CLRHIGHS = prep('CLRHIGHS')
+    CLRLOWS = prep('CLRLOWS')
+    CLRBITS = prep('CLRBITS\n')
+    SETTIME = prep('SETTIME')
+    GETTIME = prep('GETTIME\n')
+    GAIN_ON = prep('GAIN 1\n')
+    GAIN_OFF = prep('GAIN 0\n')
+    SETPER = prep('SETPER')
+    STOP = prep('STOP\n')
+    START = prep('START\n')
+    NEWSETUP = prep('NEWSETUP\n') # TODO: this is a dangerous command.
+    LAMP_ON = prep('LAMPS 1\n')
+    LAMP_OFF = prep('LAMPS 0\n')
     
 
 class DavisResponse(enum.Enum):
