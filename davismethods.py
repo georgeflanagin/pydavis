@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Give names to the Davis Instruments commands.
+Give names to the Davis Instruments commands and constants.
+
+A considerable adaptation has been made from the `weatherlink-python`
+project on GitHub, by Nick Williams of Cane Ridge TN. 
+
+This library is specifically [re]written for Python 3.7 and later,
+and makes use of numpy and a few other well known Python libraries.
 """
 
 __author__ = 'George Flanagin'
