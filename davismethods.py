@@ -3,10 +3,15 @@
 Give names to the Davis Instruments commands and constants.
 
 A considerable adaptation has been made from the `weatherlink-python`
-project on GitHub, by Nick Williams of Cane Ridge TN. 
+project on GitHub, by Nick Williams of Cane Ridge TN. His code is
+licensed under Apache 2.0.
 
 This library is specifically [re]written for Python 3.7 and later,
 and makes use of numpy and a few other well known Python libraries.
+This code exploits the availability of SQLite and its absence of 
+state, rather than using MySQL. Just a personal choice, as well as
+giving the code the ability to run just about anywhere (Raspberry Pi?)
+without installing a database. 
 """
 
 __author__ = 'George Flanagin'
@@ -184,12 +189,33 @@ class DavisCommand(enum.Enum):
     LAMP_OFF = prep('LAMPS 0\n')
 
 
-class DavisResponse(enum.Enum):
+class DavisResponses(enum.Enum):
     ACK = prepx('06')
     OK = prep('\n\rOK\n\r')
     DONE = prep('DONE\n\r')
     AWAKE = prepx('0A0D')
 
+
+class DavisConversions:
+    """
+    This `class` is more like an enum of functions to do some of
+    the work in unit conversion, and calculations of values that
+    are not directly observed. 
+    """
+
+    _TENTHS = 0.1
+    TENTHS = lambda x: x * _TENTHS
+
+    _HUNDREDTHS = 0.01
+    HUNDREDTHS = lambda x: x * _HUNDREDTHS
+
+    _THOUSANDTHS = 0.001
+    THOUSANDTHS = lambda x: x * _THOUSANDTHS
+
+    _INCHES_PER_CENTIMETER = 0.393701
+
+
+dc = DavisConversions
 
 class DavisDate:
     """
@@ -222,3 +248,206 @@ class DavisTime:
         return value.hour * 100 + value.minute
 
  
+class LoopRecord:
+    """
+    This class has been taken directly from Nick Williams weatherlink-python
+    project. I am really glad that I did not have to type in this entire
+    definition.
+    """
+    RECORD_LENGTH = 99
+
+    LOOP1_RECORD_TYPE = 0
+    LOOP2_RECORD_TYPE = 1
+
+    LOOP2_RECORD_FORMAT = (
+        '<3s'  # String 'LOO'
+        'b'  # barometer trend
+        'B'  # Should be 1 for "LOOP 2" (0 would indicate "LOOP 1")
+        'H'  # Unused, should be 0x7FFF
+        'H'  # Barometer in thousandths of inches of mercury
+        'h'  # Inside temperature in tenths of degrees Fahrenheit
+        'B'  # Inside humidity in whole percents
+        'h'  # Outside temperature in tenths of degrees Fahrenheit
+        'B'  # Wind speed in MPH
+        'B'  # Unused, should be 0xFF
+        'H'  # Wind direction in degrees, 0 = no wind, 1 = nearly N, 90 = E, 180 = S, 270 = W, 360 = N
+        'H'  # 10-minute wind average speed in tenths of MPH
+        'H'  # 2-minute wind average speed in tenths of MPH
+        'H'  # 10-minute wind gust speed in tenths of MPH
+        'H'  # 10-minute wind gust direction in degrees
+        'H'  # Unused, should be 0x7FFF
+        'H'  # Unused, should be 0x7FFF
+        'h'  # Dew point in whole degrees Fahrenheit
+        'B'  # Unused, should be 0xFF
+        'B'  # Outside humidity in whole percents
+        'B'  # Unused, should be 0xFF
+        'h'  # Heat index in whole degrees Fahrenheit
+        'h'  # Wind chill in whole degrees Fahrenheit
+        'h'  # THSW index in whole degrees Fahrenheit
+        'H'  # Rain rate in clicks/hour
+        'B'  # UV Index
+        'H'  # Solar radiation in watts per square meter
+        'H'  # Number of rain clicks this storm
+        '2x'  # Useless start date of this storm, which we don't care about
+        'H'  # Number of rain clicks today
+        'H'  # Number of rain clicks last 15 minutes
+        'H'  # Number of rain clicks last 1 hour
+        'H'  # Daily total evapotranspiration in thousandths of inches
+        'H'  # Number of rain clicks last 24 hours
+        '11x'  # Barometer calibration-related settings and readings
+        'B'  # Unused, should be 0xFF
+        'x'  # Unused field filled with undefined data
+        '6x'  # Information about what's displayed on the console graph, which we don't care about
+        'B'  # The minute within the hour, 0-59
+        '3x'  # Information about what's displayed on the console graph, which we don't care about
+        'H'  # Unused, should be 0x7FFF
+        'H'  # Unused, should be 0x7FFF
+        'H'  # Unused, should be 0x7FFF
+        'H'  # Unused, should be 0x7FFF
+        'H'  # Unused, should be 0x7FFF
+        'H'  # Unused, should be 0x7FFF
+        'c'  # Should be '\n'
+        'c'  # Should be '\r'
+        'H'  # Cyclic redundancy check (CRC)
+    )
+
+    LOOP2_RECORD_VERIFICATION_MAP_WLK = {
+        0: 'LOO',
+        2: 1,
+        3: 0x7FFF,
+        9: 0xFF,
+        15: 0x7FFF,
+        16: 0x7FFF,
+        18: 0xFF,
+        20: 0xFF,
+        33: 0xFF,
+        35: 0x7FFF,
+        36: 0x7FFF,
+        37: 0x7FFF,
+        38: 0x7FFF,
+        39: 0x7FFF,
+        40: 0x7FFF,
+        41: '\n',
+        42: '\r',
+    }
+
+    LOOP2_RECORD_SPECIAL_HANDLING = frozenset(LOOP2_RECORD_VERIFICATION_MAP_WLK.keys())
+
+    LOOP2_RECORD_ATTRIBUTE_MAP = (
+        ('_special', int, None, ),
+        ('barometric_trend', int, 80, ),
+        ('_special', int, None, ),
+        ('_special', int, None, ),
+        ('barometric_pressure', dc.THOUSANDTHS, 0, ),
+        ('temperature_inside', dc.TENTHS, 32767, ),
+        ('humidity_inside', int, 255, ),
+        ('temperature_outside', dc.TENTHS, 32767, ),
+        ('wind_speed', float, 255, ),
+        ('_special', int, None, ),
+        ('wind_direction_degrees', int, 0, ),
+        ('wind_speed_10_minute_average', dc.TENTHS, 0, ),
+        ('wind_speed_2_minute_average', dc.TENTHS, 0, ),
+        ('wind_speed_10_minute_gust', dc.TENTHS, 0, ),
+        ('wind_speed_10_minute_gust_direction_degrees', int, 0, ),
+        ('_special', int, None, ),
+        ('_special', int, None, ),
+        ('dew_point', float, 255, ),
+        ('_special', int, None, ),
+        ('humidity_outside', int, 255, ),
+        ('_special', int, None, ),
+        ('heat_index', int, 255, ),
+        ('wind_chill', int, 255, ),
+        ('thsw_index', int, 255, ),
+        ('rain_rate_clicks', int, None, ),
+        ('uv_index', dc.TENTHS, 255, ),
+        ('solar_radiation', int, 32767, ),
+        ('rain_clicks_this_storm', int, None, ),
+        ('rain_clicks_today', int, None, ),
+        ('rain_clicks_15_minutes', int, None, ),
+        ('rain_clicks_1_hour', int, None, ),
+        ('evapotranspiration', dc.THOUSANDTHS, 0, ),
+        ('rain_clicks_24_hours', int, None, ),
+        ('_special', int, None),
+        ('minute_in_hour', int, 60, ),
+    )
+
+    LOOP_WIND_DIRECTION_SPECIAL = (
+        ('wind_direction_degrees', 'wind_direction', ),
+        ('wind_speed_10_minute_gust_direction_degrees', 'wind_speed_10_minute_gust_direction', ),
+    )
+
+    LOOP_RAIN_AMOUNT_SPECIAL = (
+        ('rain_rate_clicks', 'rain_rate', ),
+        ('rain_clicks_this_storm', 'rain_amount_this_storm', ),
+        ('rain_clicks_today', 'rain_amount_today', ),
+        ('rain_clicks_15_minutes', 'rain_amount_15_minutes', ),
+        ('rain_clicks_1_hour', 'rain_amount_1_hour', ),
+        ('rain_clicks_24_hours', 'rain_amount_24_hours', ),
+    )
+
+    @classmethod
+    def load_loop_1_2_from_connection(cls, socket_file):
+        arguments = cls._get_loop_1_arguments(socket_file, True)
+        arguments.update(cls._get_loop_2_arguments(socket_file))
+        return cls(**arguments)
+
+    @classmethod
+    def load_loop_1_from_connection(cls, socket_file):
+        return cls(**cls._get_loop_1_arguments(socket_file))
+
+    @classmethod
+    def load_loop_2_from_connection(cls, socket_file):
+        return cls(**cls._get_loop_2_arguments(socket_file))
+
+    @classmethod
+    def _get_loop_1_arguments(cls, socket_file, unique_only=False):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_loop_2_arguments(cls, socket_file):
+        data = socket_file.read(cls.RECORD_LENGTH)
+
+        unpacked = struct.unpack_from(cls.LOOP2_RECORD_FORMAT, data)
+
+        for k, v in six.iteritems(cls.LOOP2_RECORD_VERIFICATION_MAP_WLK):
+            assert unpacked[k] == v
+
+        arguments = {'crc_match': calculate_weatherlink_crc(data) == 0, 'record_type': 2}
+
+        last = len(cls.LOOP2_RECORD_ATTRIBUTE_MAP)
+        for i, v in enumerate(unpacked):
+            if (i < last and i not in cls.LOOP2_RECORD_VERIFICATION_MAP_WLK and
+                        i not in cls.LOOP2_RECORD_SPECIAL_HANDLING):
+                k = cls.LOOP2_RECORD_ATTRIBUTE_MAP[i][0]
+                if v == cls.LOOP2_RECORD_ATTRIBUTE_MAP[i][2]:
+                    arguments[k] = None
+                else:
+                    arguments[k] = cls.LOOP2_RECORD_ATTRIBUTE_MAP[i][1](v)
+
+        cls._post_process_arguments(arguments)
+
+        return arguments
+
+    @classmethod
+    def _post_process_arguments(cls, arguments):
+        # The online download does not contain this information, unfortunately
+        rain_collector_type = RainCollectorTypeSerial.inches_0_01
+
+        try:
+            arguments['barometric_trend'] = BarometricTrend(arguments['barometric_trend'])
+        except ValueError:
+            arguments['barometric_trend'] = None
+
+        for k1, k2 in cls.LOOP_WIND_DIRECTION_SPECIAL:
+            if arguments[k1]:
+                arguments[k2] = WindDirection.from_degrees(arguments[k1])
+            else:
+                arguments[k2] = None
+
+        for k1, k2 in cls.LOOP_RAIN_AMOUNT_SPECIAL:
+            if arguments[k1]:
+                arguments[k2] = rain_collector_type.clicks_to_inches(arguments[k1])
+            else:
+                arguments[k2] = None
+
+
