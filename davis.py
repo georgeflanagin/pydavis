@@ -44,7 +44,7 @@ import beachhead
 
 # From this project
 
-import daviscommands as dc
+import davismethods as dm
 
 class Davis(cmd.Cmd):
 
@@ -96,7 +96,7 @@ class Davis(cmd.Cmd):
         """
         Usage: exit
         """
-        self.connection.close()
+        if self.connection: self.connection.close()
         sys.exit(os.EX_OK)
 
 
